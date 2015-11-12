@@ -1,0 +1,23 @@
+## `r job$job$id`
+
+Name : `r job$job$name`
+
+YOU CAN PUT ANY TEXT HERE
+
+| Counter | value |
+| ------------- |:-------------:|
+|Submit Time | `r as.POSIXct(job$job$submitTime/1000, origin="1970-01-01")` |
+|Start Time  | `r as.POSIXct(job$job$startTime/1000, origin="1970-01-01")` | 
+|Finish Time | `r as.POSIXct(job$job$finishTime/1000, origin="1970-01-01")` | 
+|Variance Map attempt elapsedTime | `r var(job$attempts$elapsedTime[job$attempts$type=="MAP"])` |
+|Variance Map task elapsedTime | `r var(job$tasks$elapsedTime[job$tasks$type=="MAP"])` |
+|Variance Reduce attempt elapsedTime | `r var(job$attempts$elapsedTime[job$attempts$type=="REDUCE"])` |
+|Variance Reduce task elapsedTime | `r var(job$tasks$elapsedTime[job$tasks$type=="REDUCE"])` |
+
+
+```{r plot, fig.width=25, fig.height=15, echo=FALSE, warning=FALSE}
+options(width=800)
+myplot(job)
+jsonlite::fromJSON(getURL(paste("http://","headnodehost:19888","/ws/v1/history/mapreduce/jobs/",job$job$id,"/counters", sep=""),httpheader = c(Accept="application/json")))$jobCounters$counterGroup$counter
+job$job
+```    
