@@ -89,19 +89,14 @@ myTezPlot <- function(dag,title="" , interval=1000, xtick=100, ytick=100){
 		count=count+1
 	}
 
-	# p=ggplot(data=tasks) + theme(legend.title=element_blank()) + scale_x_continuous(breaks = round(seq(0, length(tasks$time), by = xtick),1)) + scale_y_continuous(breaks = round(seq(0, max(tasks$total)*1.1, by = ytick),1)) +geom_area(aes(x=time,y=total),fill="darkgrey") +xlab(paste("Time (",interval, " ms)")) + ylab("Number of Tasks") 
-	# for (k in 1:length(vertex)) {
-	# 	p = p + geom_line(aes_string(x="time",y=paste("task_",vertex[k],sep=""),colour=paste("task_",vertex[k],sep=""))) 
-	# }
-	# p
 	library(reshape2) 
 	data2 <- melt(tasks, id = "time")
-	ggplot(data2, aes(x = time, y = value, color = variable)) + geom_line() + theme(legend.title=element_blank()) + scale_x_continuous(breaks = round(seq(0, length(tasks$time), by = xtick),1)) + scale_y_continuous(breaks = round(seq(0, max(tasks$total)*1.1, by = ytick),1)) +xlab(paste("Time (",interval, " ms)")) + ylab("Number of Tasks") 
+	ggplot(data2, aes(x = time, y = value, color = variable)) + geom_line() + theme(legend.title=element_blank()) + scale_x_continuous(minor_breaks = round(seq(0, length(tasks$time), by = xtick),1)) + scale_y_continuous(minor_breaks = round(seq(0, max(tasks$total)*1.1, by = ytick),1)) +xlab(paste("Time (",interval, " ms)")) + ylab("Number of Tasks") 
 }
 
 myplot <- function(job,title="" , interval=1000, xtick=100, ytick=100){
 	tasks=getAllCounters(job,interval)
-	ggplot(data=tasks)+theme(legend.title=element_blank()) + scale_x_continuous(breaks = round(seq(0, length(tasks$time), by = xtick),1)) + scale_y_continuous(breaks = round(seq(0, max(tasks$total)*1.1, by = ytick),1)) +geom_area(aes(x=time,y=total),fill="darkgrey")+ geom_line(aes(x=time,y=map,colour="map")) +geom_line(aes(x=time,y=shuffle,colour="shuffle")) +geom_line(aes(x=time,y=merge,colour="merge")) +geom_line(aes(x=time,y=reduceTasks,colour="reduceTasks")) +xlab(paste("Time (",interval, " ms)")) + ylab("Number of Tasks") + ggtitle(paste(title," ",job$job$id))
+	ggplot(data=tasks)+theme(legend.title=element_blank()) + scale_x_continuous(minor_breaks = round(seq(0, length(tasks$time), by = xtick),1)) + scale_y_continuous(minor_breaks = round(seq(0, max(tasks$total)*1.1, by = ytick),1)) +geom_area(aes(x=time,y=total),fill="darkgrey")+ geom_line(aes(x=time,y=map,colour="map")) +geom_line(aes(x=time,y=shuffle,colour="shuffle")) +geom_line(aes(x=time,y=merge,colour="merge")) +geom_line(aes(x=time,y=reduceTasks,colour="reduceTasks")) +xlab(paste("Time (",interval, " ms)")) + ylab("Number of Tasks") + ggtitle(paste(title," ",job$job$id))
 }
  
 getAllCounters <- function(job,interval=1000,count=1){
