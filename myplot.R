@@ -48,6 +48,57 @@ transposeListOfLists <- function(listoflist)
 	result
 }
 
+readzip <- function(zipfile) {
+    # Create a name for the dir where we'll unzip
+    zipdir <- tempfile()
+    # Create the dir using that name
+    dir.create(zipdir)
+    # Unzip the file into the dir
+    unzip(zipfile, exdir=zipdir)
+    # Get the files into the dir
+    allfiles <- list.files(zipdir)
+    # Throw an error if there's more than one
+    if(length(allfiles)<1) stop("No data file inside zip")
+    # Get the full name of the file
+    task_files=allfiles[grepl("tasks_part_.*.json",allfiles)]
+    wd=getwd()
+    setwd(zipdir)
+    tasks <- list()
+    #https://cran.r-project.org/web/packages/jsonlite/vignettes/json-paging.html
+    for(i in 1:length(task_files)){
+      mydata <- fromJSON(task_files[i])
+      message("Retrieving page ", i)
+      tasks[[i+1]] <- mydata$tasks
+    }
+    setwd(wd)
+    all_tasks <- rbind.pages(tasks)
+}
+
+myTezPlot <- function(dag,title="" , interval=1000, xtick=100, ytick=100){
+	range=length(dag$otherinfo$status)
+	vertex = unique(matrix(unlist(strsplit(dag$entity,"_")),ncol = 6, byrow=T)[,5]) #help from https://stat.ethz.ch/pipermail/r-help/2010-January/224852.html
+	# task_1446542009204_0186_1_05_000552
+	tasks=data.frame(time=rep(0,range),total=rep(0,range))
+	count=1	
+	for (i in seq(from=min(dag$otherinfo$startTime)-1, to=max(dag$otherinfo$endTime)+interval, by=interval)){
+		tasks[count,"time"]=count
+		tasks[count,"total"]=length(which(dag$otherinfo$startTime < i & dag$otherinfo$endTime > (i+interval) ))
+		for (j in 1:length(vertex)) {
+			tasks[count,paste("task_",vertex[j],sep="")]=length(which(grepl(paste("_",vertex[j],"_",sep=""),dag$entity) & dag$otherinfo$startTime < i & dag$otherinfo$endTime > (i+interval) ))	
+		}
+		count=count+1
+	}
+
+	# p=ggplot(data=tasks) + theme(legend.title=element_blank()) + scale_x_continuous(breaks = round(seq(0, length(tasks$time), by = xtick),1)) + scale_y_continuous(breaks = round(seq(0, max(tasks$total)*1.1, by = ytick),1)) +geom_area(aes(x=time,y=total),fill="darkgrey") +xlab(paste("Time (",interval, " ms)")) + ylab("Number of Tasks") 
+	# for (k in 1:length(vertex)) {
+	# 	p = p + geom_line(aes_string(x="time",y=paste("task_",vertex[k],sep=""),colour=paste("task_",vertex[k],sep=""))) 
+	# }
+	# p
+	library(reshape2) 
+	data2 <- melt(tasks, id = "time")
+	ggplot(data2, aes(x = time, y = value, color = variable)) + geom_line() + theme(legend.title=element_blank()) + scale_x_continuous(breaks = round(seq(0, length(tasks$time), by = xtick),1)) + scale_y_continuous(breaks = round(seq(0, max(tasks$total)*1.1, by = ytick),1)) +xlab(paste("Time (",interval, " ms)")) + ylab("Number of Tasks") 
+}
+
 myplot <- function(job,title="" , interval=1000, xtick=100, ytick=100){
 	tasks=getAllCounters(job,interval)
 	ggplot(data=tasks)+theme(legend.title=element_blank()) + scale_x_continuous(breaks = round(seq(0, length(tasks$time), by = xtick),1)) + scale_y_continuous(breaks = round(seq(0, max(tasks$total)*1.1, by = ytick),1)) +geom_area(aes(x=time,y=total),fill="darkgrey")+ geom_line(aes(x=time,y=map,colour="map")) +geom_line(aes(x=time,y=shuffle,colour="shuffle")) +geom_line(aes(x=time,y=merge,colour="merge")) +geom_line(aes(x=time,y=reduceTasks,colour="reduceTasks")) +xlab(paste("Time (",interval, " ms)")) + ylab("Number of Tasks") + ggtitle(paste(title," ",job$job$id))
