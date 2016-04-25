@@ -8,6 +8,9 @@ lapply(list.of.packages,function(x){library(x,character.only=TRUE)})
 # It returns all the data of a job with specified jobId and specified history server
 # The historyServer is in format "hostname:port"
 
+# You might need to install  libcurl for RCurl installation
+# sudo apt-get -y install libcurl4-gnutls-dev
+
 getJob <- function(jobId, historyServer="headnodehost:19888")
 {
 	job <- list()
@@ -67,14 +70,16 @@ readzip <- function(zipfile) {
     #https://cran.r-project.org/web/packages/jsonlite/vignettes/json-paging.html
     for(i in 1:length(task_files)){
       mydata <- fromJSON(task_files[i])
-      message("Retrieving page ", i)
+      message("Retrieving file tasks_part_", i)
       tasks[[i+1]] <- mydata$tasks
     }
     setwd(wd)
     all_tasks <- rbind.pages(tasks)
 }
 
-myTezPlot <- function(dag,title="" , interval=1000, xtick=100, ytick=100){
+# This is useful for plotting downloaded ZIP
+
+plotTezZip <- function(dag,title="Tez plot" , interval=1000, xtick=100, ytick=100,savefile="tezdag"){
 	range=length(dag$otherinfo$status)
 	vertex = unique(matrix(unlist(strsplit(dag$entity,"_")),ncol = 6, byrow=T)[,5]) #help from https://stat.ethz.ch/pipermail/r-help/2010-January/224852.html
 	# task_1446542009204_0186_1_05_000552
@@ -91,7 +96,70 @@ myTezPlot <- function(dag,title="" , interval=1000, xtick=100, ytick=100){
 
 	library(reshape2) 
 	data2 <- melt(tasks, id = "time")
-	ggplot(data2, aes(x = time, y = value, color = variable)) + geom_line() + theme(legend.title=element_blank()) + scale_x_continuous(minor_breaks = round(seq(0, length(tasks$time), by = xtick),1)) + scale_y_continuous(minor_breaks = round(seq(0, max(tasks$total)*1.1, by = ytick),1)) +xlab(paste("Time (",interval, " ms)")) + ylab("Number of Tasks") 
+	p = ggplot(data2, aes(x = time, y = value, color = variable)) + geom_line() + theme(legend.title=element_blank()) + scale_x_continuous(minor_breaks = round(seq(0, length(tasks$time), by = xtick),1)) + scale_y_continuous(minor_breaks = round(seq(0, max(tasks$total)*1.1, by = ytick),1)) +xlab(paste("Time (",interval, " ms)")) + ylab("Number of Tasks") +ggtitle(title)
+	if(hasArg(savefile)){
+		ggsave(plot=p,file=savefile)
+		print(sprintf("Saved plot as %s",savefile))
+	}
+	p
+}
+
+# This is used by Rmd file to gernereate HTML page with the plot
+myTezPlot2 <- function(dag,title="Tez plot" , interval=1000, xtick=100, ytick=100,savefile="tezdag"){
+	range=length(dag$tasks$vertexId)
+	vertex = unique(dag$tasks$vertexId) #help from https://stat.ethz.ch/pipermail/r-help/2010-January/224852.html
+	# task_1446542009204_0186_1_05_000552
+	tasks=data.frame(time=rep(0,range),total=rep(0,range))
+	count=1	
+	for (i in seq(from=min(dag$tasks$startTime)-1, to=max(dag$tasks$endTime)+interval, by=interval)){
+		tasks[count,"time"]=count
+		tasks[count,"total"]=length(which(dag$tasks$startTime < i & dag$tasks$endTime > (i+interval) ))
+		for (j in 1:length(vertex)) {
+			tasks[count,vertex[j]]=length(which(vertex[j] == dag$tasks$vertexId & dag$tasks$startTime < i & dag$tasks$endTime > (i+interval) ))	
+		}
+		count=count+1
+	}
+
+	library(reshape2) 
+	data2 <- melt(tasks, id = "time")
+	p = ggplot(data2, aes(x = time, y = value, color = variable)) + geom_line() + theme(legend.title=element_blank()) + scale_x_continuous(minor_breaks = round(seq(0, length(tasks$time), by = xtick),1)) + scale_y_continuous(minor_breaks = round(seq(0, max(tasks$total)*1.1, by = ytick),1)) +xlab(paste("Time (",interval, " ms)")) + ylab("Number of Tasks") +ggtitle(title)
+	if(hasArg(savefile)){
+		ggsave(plot=p,file=savefile)
+		print(sprintf("Saved plot as %s",savefile))
+	}
+	p
+}
+
+getTezDag <- function(dagId, timelineServer="headnodehost:8188")
+{
+	dag <- list()
+	url<-paste("http://",timelineServer,"/ws/v1/timeline/TEZ_DAG_ID/",dagId, sep="")
+	dag$dag <- rjson::fromJSON(getURL(url,httpheader = c(Accept="application/json")))
+	
+	dag$tasks<- data.frame(matrix(nrow=length(dag$dag$otherinfo$vertexNameIdMapping),ncol=4))
+	
+	colnames(dag$tasks) <- c("vertexId","taskId", "startTime", "endTime")
+	
+	count=1
+	for(i in 1:length(dag$dag$otherinfo$vertexNameIdMapping))
+	{
+		vertexId<-dag$dag$otherinfo$vertexNameIdMapping[[i]]
+		url<-paste("http://",timelineServer,"/ws/v1/timeline/TEZ_VERTEX_ID/",vertexId, sep="")
+		temp <- rjson::fromJSON(getURL(url,httpheader = c(Accept="application/json")))
+		
+		for(j in 1:length(temp$relatedentities$TEZ_TASK_ID))
+		{
+ 			taskUrl<-paste("http://",timelineServer,"/ws/v1/timeline/TEZ_TASK_ID/",temp$relatedentities$TEZ_TASK_ID[j], sep="")
+			t <- rjson::fromJSON(getURL(taskUrl,httpheader = c(Accept="application/json")))
+			dag$tasks[count,1]=vertexId
+			dag$tasks[count,2]=temp$relatedentities$TEZ_TASK_ID[j]
+			dag$tasks[count,3]=t$otherinfo$startTime
+			dag$tasks[count,4]=t$otherinfo$endTime
+			count <- count + 1
+ 	 	}
+	}
+	class(dag)<-"tezdag"
+	dag
 }
 
 myplot <- function(job,title="" , interval=1000, xtick=100, ytick=100){
